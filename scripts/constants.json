@@ -1,0 +1,7 @@
+{
+  "perClientFeeWei": 500000000000000,
+  "aggregatorPaymentWei": 1000000000000000,
+  "roundTimeoutSec": 600,
+  "nClients": 3,
+  "_comment": "Round economics. perClientFee = 0.0005 ETH; aggregatorPayment = 0.001 ETH. roundTimeoutSec is the deadline after which clients can claim refunds. nClients fixed at 3 for the local demo."
+}

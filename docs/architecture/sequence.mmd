@@ -1,0 +1,25 @@
+%% ZTFA — one federated round (HLD §5.2 Figure 3)
+sequenceDiagram
+    autonumber
+    participant IoT as IoT Sensor
+    participant C as Client Node
+    participant A as Aggregator
+    participant Chain as FederationRound.sol
+    participant V as Verifier.sol
+
+    IoT->>C: stream labeled + unlabeled records
+    A->>Chain: startRound(t)
+    Note over C: train E epochs<br/>on labeled partition
+    Note over C: c_i = CKKS.Enc(w_i)<br/>H_i = Poseidon(t || cid || c_i)
+    C->>A: POST /v1/round/{t}/submit (c_i)
+    C->>Chain: submitClientCommitment(t, H_i) {fee}
+    Note over A: c_sum = Σ c_i (homomorphic add)
+    Note over A: π ← Groth16.Prove(circuit, witness)
+    A->>Chain: submitAggregateAndProof(t, H_agg, π)
+    Chain->>V: verifyProof(π, H[], H_agg)
+    V-->>Chain: true
+    Chain->>A: pay aggregatorPayment
+    Chain-->>C: RoundVerified(t, H_agg) event
+    C->>A: GET /v1/round/{t}/aggregate
+    A-->>C: c_sum bytes
+    Note over C: w_global = Dec(c_sum) / N<br/>update local model

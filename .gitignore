@@ -1,0 +1,94 @@
+# --- Python ---
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+*.egg
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.venv/
+venv/
+env/
+.python-version
+.tox/
+htmlcov/
+.coverage
+.coverage.*
+coverage.xml
+
+# --- Node / TypeScript ---
+node_modules/
+.next/
+.turbo/
+out/
+dist/
+.pnpm-store/
+*.tsbuildinfo
+.npm/
+.yarn/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# --- Rust ---
+target/
+**/*.rs.bk
+Cargo.lock.bak
+
+# --- Foundry / Solidity ---
+contracts/out/
+contracts/cache/
+contracts/broadcast/
+contracts/lib/
+!contracts/lib/.gitkeep
+
+# --- Circuit / SNARK artifacts (regenerable, large) ---
+circuits/build/
+circuits/*.r1cs
+circuits/*.sym
+circuits/*.zkey
+circuits/*.wtns
+circuits/**/*.wasm
+circuits/powers_of_tau/*.ptau
+!circuits/powers_of_tau/.gitkeep
+!circuits/powers_of_tau/README.md
+
+# --- Generated contracts (regenerated from circuit) ---
+contracts/src/Verifier.sol
+
+# --- Secrets / keys (NEVER commit) ---
+keys/
+!keys/.gitkeep
+!keys/README.md
+*.pem
+*.key
+.env
+.env.local
+.env.*.local
+
+# --- Local data ---
+client/data/
+aggregator/data/
+*.sqlite
+*.sqlite-journal
+*.db
+.minio-data/
+.postgres-data/
+.anvil-state/
+
+# --- IDE / OS ---
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# --- Demo artifacts ---
+docs/results/*.png
+docs/results/*.csv
+!docs/results/.gitkeep
+docs/demo.mp4

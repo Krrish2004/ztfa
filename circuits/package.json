@@ -1,0 +1,24 @@
+{
+  "name": "ztfa-circuits",
+  "version": "0.1.0",
+  "description": "ZTFA SNARK circuit (aggregation) + Poseidon helper bridge",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "compile": "bash scripts/compile.sh",
+    "setup": "bash scripts/setup.sh",
+    "export-verifier": "bash scripts/export_verifier.sh",
+    "test": "mocha tests/**/*.test.mjs",
+    "poseidon-cli": "node scripts/poseidon_cli.mjs"
+  },
+  "dependencies": {
+    "circomlib": "^2.0.5",
+    "circomlibjs": "^0.1.7",
+    "snarkjs": "^0.7.5"
+  },
+  "devDependencies": {
+    "circom_tester": "^0.0.20",
+    "chai": "^4.5.0",
+    "mocha": "^10.7.3"
+  }
+}

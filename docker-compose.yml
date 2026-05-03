@@ -1,0 +1,116 @@
+name: ztfa
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: ztfa-postgres
+    environment:
+      POSTGRES_DB: ztfa
+      POSTGRES_USER: ztfa
+      POSTGRES_PASSWORD: ztfa_dev
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ztfa"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  minio:
+    image: minio/minio:latest
+    container_name: ztfa-minio
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ztfa
+      MINIO_ROOT_PASSWORD: ztfa_dev_minio
+    ports:
+      - "9000:9000"   # S3 API
+      - "9001:9001"   # Web console
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  minio-init:
+    image: minio/mc:latest
+    container_name: ztfa-minio-init
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: >
+      /bin/sh -c "
+      mc alias set local http://minio:9000 ztfa ztfa_dev_minio;
+      mc mb -p local/ciphertexts || true;
+      mc mb -p local/aggregates || true;
+      echo 'MinIO buckets ready';
+      "
+
+  mosquitto:
+    image: eclipse-mosquitto:2
+    container_name: ztfa-mosquitto
+    ports:
+      - "1883:1883"
+      - "9883:9001"   # WebSocket
+    volumes:
+      - ./scripts/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+      - mosquitto_data:/mosquitto/data
+      - mosquitto_logs:/mosquitto/log
+
+  anvil:
+    image: ghcr.io/foundry-rs/foundry:latest
+    container_name: ztfa-anvil
+    platform: linux/amd64
+    entrypoint: anvil
+    command: >
+      --host 0.0.0.0
+      --chain-id 31337
+      --block-time 2
+      --accounts 10
+      --balance 1000
+      --mnemonic "test test test test test test test test test test test junk"
+      --state /anvil-state/state.json
+      --state-interval 30
+    ports:
+      - "8545:8545"
+    volumes:
+      - anvil_state:/anvil-state
+
+  aggregator:
+    build:
+      context: ./aggregator
+      dockerfile: Dockerfile
+    container_name: ztfa-aggregator
+    depends_on:
+      postgres:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+      anvil:
+        condition: service_started
+    environment:
+      DATABASE_URL: postgresql://ztfa:ztfa_dev@postgres:5432/ztfa
+      S3_ENDPOINT: http://minio:9000
+      S3_ACCESS_KEY: ztfa
+      S3_SECRET_KEY: ztfa_dev_minio
+      CHAIN_RPC_URL: http://anvil:8545
+      CHAIN_ID: "31337"
+      KEYS_DIR: /keys
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./keys:/keys:ro
+      - ./circuits/build:/circuits:ro
+    profiles:
+      - full   # only start when running full demo; dev iterates aggregator outside compose
+
+volumes:
+  postgres_data:
+  minio_data:
+  mosquitto_data:
+  mosquitto_logs:
+  anvil_state:

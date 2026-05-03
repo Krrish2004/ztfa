@@ -1,0 +1,40 @@
+%% ZTFA — local-dev deployment (Docker Compose topology)
+graph TB
+    subgraph HOST[Developer Laptop]
+        subgraph DOCKER[docker-compose]
+            PG[(Postgres<br/>round metadata)]
+            MN[(MinIO<br/>ciphertext blobs)]
+            MO[Mosquitto<br/>MQTT broker]
+            AN[Anvil<br/>chainId 31337]
+        end
+        subgraph PROCS[Native processes]
+            AG[Aggregator FastAPI<br/>:8000]
+            C0[Client 0<br/>local-RPC :7000]
+            C1[Client 1<br/>local-RPC :7001]
+            C2[Client 2<br/>local-RPC :7002]
+            S0[Sim 0]
+            S1[Sim 1]
+            S2[Sim 2]
+            UI[Portal Next.js<br/>:3000]
+        end
+    end
+
+    AG --> PG
+    AG --> MN
+    AG --> AN
+    C0 --> AN
+    C1 --> AN
+    C2 --> AN
+    S0 --> MO
+    S1 --> MO
+    S2 --> MO
+    MO --> C0
+    MO --> C1
+    MO --> C2
+    UI --> AN
+    UI --> C0
+    UI --> C1
+    UI --> C2
+    C0 --> AG
+    C1 --> AG
+    C2 --> AG

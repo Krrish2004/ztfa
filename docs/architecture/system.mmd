@@ -1,0 +1,32 @@
+%% ZTFA — system architecture (HLD §3 Figure 1)
+graph LR
+    subgraph TRUSTED[Trusted Zone — Client Domain]
+        IoT[IoT Sensor<br/>MQTT stream] -->|labeled<br/>+ unlabeled| Client[Client Node<br/>PyTorch + CKKS engine<br/>★ secret key lives ONLY here ★]
+        Client --> Inference[Inference runtime<br/>activity prediction]
+        Client --> LocalRPC[Local-RPC<br/>127.0.0.1:7000+i]
+        LocalRPC --> Portal[Portal UI<br/>Next.js + RainbowKit]
+        Wallet[Client Wallet<br/>commit + fee tx] --> Chain
+    end
+
+    subgraph UNTRUSTED[Untrusted — Aggregator]
+        Aggregator[Federated Aggregator<br/>FastAPI<br/>NO secret keys]
+        Aggregator --> Homo[Homomorphic FedAvg<br/>c_sum = Σ c_i]
+        Homo --> Prover[Groth16 Prover<br/>rapidsnark / snarkjs]
+        Aggregator --> Storage[Postgres + MinIO]
+    end
+
+    subgraph LEDGER[Public Ledger]
+        Chain[FederationRound.sol<br/>+ Verifier.sol<br/>~280k gas verify]
+    end
+
+    Client -->|encrypted weights c_i| Aggregator
+    Aggregator -->|c_sum| Client
+    Wallet -->|H_i + fee| Chain
+    Aggregator -->|π + H_agg| Chain
+
+    classDef trusted fill:#1e3a5f,stroke:#6c8eff,color:#fff
+    classDef untrusted fill:#5f1e1e,stroke:#ff6c6c,color:#fff
+    classDef ledger fill:#1e5f3a,stroke:#6cff8e,color:#fff
+    class TRUSTED trusted
+    class UNTRUSTED untrusted
+    class LEDGER ledger

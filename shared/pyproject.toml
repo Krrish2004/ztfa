@@ -1,0 +1,18 @@
+[project]
+name = "ztfa-crypto"
+version = "0.1.0"
+description = "Shared CKKS + Poseidon primitives used by both client and aggregator"
+requires-python = ">=3.11"
+dependencies = [
+    "tenseal>=0.3.14",
+    "numpy>=2.1.0",
+    "poseidon-hash>=0.1.4",
+]
+
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["ztfa_crypto*"]
