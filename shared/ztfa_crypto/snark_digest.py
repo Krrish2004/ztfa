@@ -33,18 +33,31 @@ from .poseidon import BN254_FR
 DIGEST_LEN_K: Final[int] = 8  # locked at compile time of aggregation.circom
 
 
-def project(ciphertext_bytes: bytes) -> list[int]:
+def project(
+    ciphertext_bytes: bytes,
+    *,
+    round_t: int = 0,
+    client_id: int = 0,
+) -> list[int]:
     """Map ciphertext bytes → length-K vector of BN254 Fr elements.
 
+    Domain-separated by `(round_t, client_id)` so that two different clients
+    submitting the same ciphertext, OR the same client replaying a stale
+    ciphertext in a later round, produce DIFFERENT digests (T9 defense at
+    the digest layer).
+
+    For the aggregator's c_sum, pass `client_id = -1` (or any agreed
+    sentinel) — see `project_for_aggregate`.
+
     Note: this projection is NOT additively homomorphic. The aggregator
-    computes the digest of `c_sum` AFTER homomorphic addition of the
-    ciphertexts; the SNARK then verifies the digest of c_sum equals the sum
-    of the per-client digests. For an honest aggregator this works; an active
-    aggregator submitting a forged c_sum would fail to satisfy both:
-      (a) the on-chain hash check against H_sum  (client re-derives digest)
-      (b) the in-circuit additive constraint     (digests must sum)
+    computes the digest of `c_sum` AFTER homomorphic addition; the SNARK
+    verifies the digest of c_sum equals the sum of the per-client digests.
     """
-    h = hashlib.sha256(ciphertext_bytes).digest()
+    h = hashlib.sha256(
+        round_t.to_bytes(8, "big")
+        + client_id.to_bytes(8, "big", signed=True)
+        + ciphertext_bytes
+    ).digest()
     chunks: list[int] = []
     # 32 bytes / 4-byte chunks = 8 chunks
     for i in range(DIGEST_LEN_K):
@@ -52,6 +65,14 @@ def project(ciphertext_bytes: bytes) -> list[int]:
         chunk = h[start : start + 4]
         chunks.append(int.from_bytes(chunk, byteorder="big"))
     return chunks
+
+
+def project_for_aggregate(
+    ciphertext_bytes: bytes, *, round_t: int
+) -> list[int]:
+    """Aggregator-side projection over c_sum. Domain-separated by round
+    only (no client_id; c_sum is per-round)."""
+    return project(ciphertext_bytes, round_t=round_t, client_id=-1)
 
 
 def project_sum_in_field(client_digests: list[list[int]]) -> list[int]:

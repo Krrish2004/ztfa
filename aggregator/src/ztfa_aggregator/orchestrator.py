@@ -23,7 +23,12 @@ from ztfa_crypto.poseidon import to_bytes32
 
 from .chain import ChainClient
 from .config import Settings
-from .homomorphic import homomorphic_sum, serialize_for_snark, write_aggregate_blob
+from .homomorphic import (
+    homomorphic_sum,
+    serialize_aggregate_for_snark,
+    serialize_for_snark,
+    write_aggregate_blob,
+)
 from .prover import prove_round
 from .storage import ClientCommit, Round, RoundState, StorageBackend
 
@@ -106,8 +111,15 @@ class Orchestrator:
             c_sum = await asyncio.to_thread(homomorphic_sum, cts, public_ctx_blob)
             agg_uri = await self.storage.put_aggregate(t, c_sum)
 
-            # Build digests for the SNARK
-            client_digests = [serialize_for_snark(ct) for ct in cts]
+            # Build digests for the SNARK — domain-separated by (round, client_id)
+            # so that the SNARK's `Poseidon-chain(digest)` MATCHES the client's
+            # on-chain `H_i = commitment(t, cid, ct)` byte-for-byte.
+            client_digests = [
+                serialize_for_snark(
+                    cts[i], round_t=t, client_id=int(commits[i].client_id)
+                )
+                for i in range(len(commits))
+            ]
 
             # Phase 3 — prove
             r.state = RoundState.PROVING.value

@@ -33,6 +33,19 @@ bash scripts/run-round.sh 1   # terminal 3
 Visit http://localhost:3000 and connect with the deterministic Anvil
 mnemonic (`test test test test test test test test test test test junk`).
 
+## Live end-to-end demo (one command)
+
+```bash
+PYTHONPATH=shared:client/src:aggregator/src:iot-simulator ZTFA_ROOT=$PWD \
+    .venv/bin/python scripts/e2e_live.py
+```
+
+Spins up Anvil, deploys contracts, runs the full v1 protocol (3 clients
+train → CKKS-encrypt → on-chain commit → homomorphic sum → Groth16
+proof → on-chain verify → decrypt → update model) in one process. Output
+includes pre/post accuracy delta per client. Real chain. Real proof.
+Real gas. Real CKKS arithmetic.
+
 ## Tests
 
 ```bash

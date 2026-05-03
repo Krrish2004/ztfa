@@ -109,17 +109,29 @@ def poseidon_bytes(data: bytes) -> int:
 
 
 def commitment(round_index: int, client_id: int, ciphertext_bytes: bytes) -> int:
-    """Domain-separated commitment (CLAUDE.md §1.5; defends T9 replay).
+    """Domain-separated commitment matching the in-circuit hash (defends T9).
 
-    H_i = Poseidon( Poseidon(round_index, client_id),
-                    Poseidon-chain( chunk31(ciphertext_bytes) ) )
+    H_i = Poseidon-chain( project(ct, round_t, client_id) )
+
+    The `project` function (`ztfa_crypto.snark_digest`) bakes
+    `(round_t, client_id)` into a SHA-256 prefix so the resulting digest
+    differs for the same ciphertext across rounds/clients. The SNARK proves
+    `poseidon_chain(c_i) == H_i` over the SAME digest, so what the client
+    publishes on chain matches what the SNARK enforces. CLAUDE.md §1.5.
     """
-    return _PoseidonRepl.get().call(
-        "commitment",
-        round=str(round_index),
-        clientId=str(client_id),
-        ctHex=ciphertext_bytes.hex(),
-    )
+    # Local import to avoid circular dep at module-load
+    from .snark_digest import project
+
+    digest = project(ciphertext_bytes, round_t=round_index, client_id=client_id)
+    return poseidon_chain(digest)
+
+
+def commitment_for_aggregate(round_index: int, ciphertext_bytes: bytes) -> int:
+    """Commitment over c_sum — same shape, sentinel client_id = -1."""
+    from .snark_digest import project_for_aggregate
+
+    digest = project_for_aggregate(ciphertext_bytes, round_t=round_index)
+    return poseidon_chain(digest)
 
 
 def to_bytes32(field_element: int) -> bytes:

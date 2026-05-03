@@ -6,7 +6,7 @@ from pathlib import Path
 
 import tenseal as ts
 
-from ztfa_crypto.snark_digest import project
+from ztfa_crypto.snark_digest import project, project_for_aggregate
 
 
 def homomorphic_sum(ciphertext_blobs: list[bytes], public_ctx_blob: bytes) -> bytes:
@@ -30,10 +30,17 @@ def homomorphic_sum(ciphertext_blobs: list[bytes], public_ctx_blob: bytes) -> by
     return csum.serialize()
 
 
-def serialize_for_snark(ct_blob: bytes) -> list[int]:
+def serialize_for_snark(
+    ct_blob: bytes, *, round_t: int, client_id: int
+) -> list[int]:
     """Project a serialized ciphertext to its 8-element BN254 Fr digest
-    (the SNARK input representation)."""
-    return project(ct_blob)
+    (the SNARK input representation), domain-separated by (round_t, client_id)."""
+    return project(ct_blob, round_t=round_t, client_id=client_id)
+
+
+def serialize_aggregate_for_snark(ct_blob: bytes, *, round_t: int) -> list[int]:
+    """Aggregator-side projection of c_sum."""
+    return project_for_aggregate(ct_blob, round_t=round_t)
 
 
 def write_aggregate_blob(out_path: Path, ct_blob: bytes) -> None:
