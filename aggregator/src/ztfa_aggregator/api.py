@@ -25,14 +25,40 @@ log = structlog.get_logger()
 async def lifespan(app: FastAPI):
     settings = Settings()
     # Invariant: aggregator MUST hold no secret key (CLAUDE.md §8)
-    public_ctx = load_public_only_context(settings.public_context_path)
-    public_ctx_blob = settings.public_context_path.read_bytes()
+    # In cloud-stub mode the public CKKS context and the chain wiring are
+    # bootstrapped out-of-band; we still preserve §8.1/§8.2 by never
+    # constructing a context with a secret key here.
+    public_ctx_blob: bytes = b""
+    if settings.public_context_path.exists():
+        load_public_only_context(settings.public_context_path)
+        public_ctx_blob = settings.public_context_path.read_bytes()
+    elif not settings.stub_mode:
+        raise FileNotFoundError(
+            f"public CKKS context missing at {settings.public_context_path} "
+            "and STUB_MODE is not set"
+        )
+    else:
+        log.warning(
+            "ckks_public_ctx_missing_stub_mode",
+            path=str(settings.public_context_path),
+        )
 
     engine = make_engine(settings.database_url)
     await init_db(engine)
     session_factory = make_sessionmaker(engine)
     storage = StorageBackend(root=settings.keys_dir.parent / "aggregator" / "data" / "blobs")
-    chain = ChainClient(settings)
+
+    chain: ChainClient | None
+    if settings.federation_round_address:
+        chain = ChainClient(settings)
+    elif settings.stub_mode:
+        chain = None
+        log.warning("chain_not_wired_stub_mode")
+    else:
+        raise RuntimeError(
+            "FEDERATION_ROUND_ADDRESS not set and STUB_MODE is not enabled"
+        )
+
     orchestrator = Orchestrator(settings, chain, storage, session_factory)
 
     app.state.settings = settings
@@ -44,6 +70,7 @@ async def lifespan(app: FastAPI):
         n_clients=settings.n_clients,
         chain=settings.chain_rpc_url,
         contract=settings.federation_round_address,
+        stub_mode=settings.stub_mode,
     )
     yield
     await engine.dispose()
@@ -57,8 +84,14 @@ def get_orchestrator() -> Orchestrator:
 
 
 @app.get("/health")
-def health() -> dict[str, str]:
-    return {"status": "ok"}
+def health() -> dict[str, object]:
+    settings: Settings = app.state.settings if hasattr(app.state, "settings") else Settings()
+    return {
+        "status": "ok",
+        "stub_mode": settings.stub_mode,
+        "chain_wired": app.state.chain is not None if hasattr(app.state, "chain") else False,
+        "n_clients": settings.n_clients,
+    }
 
 
 @app.get("/v1/round/{t}/status")
@@ -114,7 +147,11 @@ async def get_aggregate(
     """Returns the aggregated ciphertext c_sum (base64) — but only after the
     SNARK has verified on chain. Clients verify on-chain status before
     accepting the blob."""
-    chain: ChainClient = app.state.chain
+    chain: ChainClient | None = app.state.chain
+    if chain is None:
+        raise HTTPException(
+            status_code=503, detail="chain not wired (cloud-stub mode)"
+        )
     if not chain.is_round_verified(t):
         raise HTTPException(status_code=409, detail="round not verified yet")
     s = await orch.get_round_status(t)
@@ -139,6 +176,11 @@ async def get_aggregate(
 def joint_public() -> dict[str, str]:
     """v1: returns the pre-distributed CKKS public context, base64-encoded."""
     blob: bytes = app.state.public_ctx_blob
+    if not blob:
+        raise HTTPException(
+            status_code=503,
+            detail="public CKKS context not yet bootstrapped (cloud-stub mode)",
+        )
     return {"public_context_b64": base64.b64encode(blob).decode()}
 
 
@@ -151,6 +193,11 @@ async def start_round_endpoint(
     body: StartRoundRequest,
     orch: Annotated[Orchestrator, Depends(get_orchestrator)] = ...,  # type: ignore[assignment]
 ) -> dict[str, str]:
+    if app.state.chain is None:
+        raise HTTPException(
+            status_code=503,
+            detail="chain not wired (cloud-stub mode); deploy contracts and set FEDERATION_ROUND_ADDRESS",
+        )
     await orch.open_round(body.t)
     return {"status": "started", "t": str(body.t)}
 
@@ -161,6 +208,11 @@ async def finalize_round_endpoint(
     orch: Annotated[Orchestrator, Depends(get_orchestrator)] = ...,  # type: ignore[assignment]
 ) -> dict[str, str]:
     """Triggers homomorphic-sum + proof + chain-submit (phases 2-4)."""
+    if app.state.chain is None or not app.state.public_ctx_blob:
+        raise HTTPException(
+            status_code=503,
+            detail="cloud-stub mode: chain or CKKS public context not wired",
+        )
     await orch.finalize_round(t, app.state.public_ctx_blob)
     return {"status": "finalized", "t": str(t)}
 
@@ -175,9 +227,11 @@ def dkg_contribute_stub() -> dict[str, str]:
 
 
 def main() -> None:
+    import os
     import uvicorn
 
-    uvicorn.run("ztfa_aggregator.api:app", host="0.0.0.0", port=8000, reload=False)
+    port = int(os.environ.get("PORT", "8000"))
+    uvicorn.run("ztfa_aggregator.api:app", host="0.0.0.0", port=port, reload=False)
 
 
 if __name__ == "__main__":

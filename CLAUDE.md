@@ -289,6 +289,8 @@ FL / threshold-CKKS prior art:
 
 **C. Local-dev only.** No AWS/Vercel/cloud config. Anvil for chain, MinIO for object store, Mosquitto in Docker, Postgres in Docker. Production wiring is out of scope.
 
+**C.1. Render demo exception (added 2026-05-04).** A parallel cloud target exists for demo purposes: a free-tier Render deployment of `ztfa-aggregator` and `ztfa-portal` plus a free Render Postgres. Substitutions vs. C: chain → Polygon zkEVM Cardona public RPC (chainId 2442); object store → ephemeral filesystem (no R2/MinIO); MQTT → omitted in cloud demo. The aggregator boots in `STUB_MODE` until contracts and the CKKS public context are bootstrapped out-of-band — `/health` and `/v1/round/{t}/status` are live; `start`/`finalize` return 503 until wired. **Local-dev remains primary.** All §8 invariants still hold: aggregator never holds `sk`, ciphertexts never go on-chain, Poseidon for commitments. Cloud blueprint lives in `render.yaml` at repo root.
+
 **D. Languages locked:** Python (client + aggregator), Rust (rapidsnark wrapper), Solidity (contracts), TypeScript+Next.js (portal), circom (circuit DSL). Do not introduce additional languages.
 
 **E. Test discipline.** Per global rules: 80% coverage, TDD for new features. **Crypto modules MUST have golden-vector tests** (encrypt → decrypt round-trip; sum of plaintexts == decrypt(sum of ciphertexts) within ε).

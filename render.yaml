@@ -1,0 +1,80 @@
+# Render Blueprint — ZTFA cloud demo deployment.
+# Reference: https://render.com/docs/blueprint-spec
+#
+# Substitutions vs the local-dev stack (see CLAUDE.md §12.C.1):
+#   • Anvil chain      → Polygon zkEVM Cardona testnet (chainId 2442)
+#   • MinIO            → in-process filesystem (ephemeral on Render free tier)
+#   • Mosquitto MQTT   → omitted in cloud demo; ingest via HTTP POST instead
+#   • CKKS keys        → bootstrapped out-of-band; aggregator runs in
+#                        STUB_MODE until pk + contract addresses are wired.
+#
+# All §8 invariants from CLAUDE.md remain honored: aggregator never holds an
+# sk; ciphertexts never go on-chain; round commitments use Poseidon.
+
+databases:
+  - name: ztfa-postgres
+    plan: free
+    region: oregon
+    postgresMajorVersion: "16"
+
+services:
+  - type: web
+    name: ztfa-aggregator
+    runtime: python
+    region: oregon
+    plan: free
+    rootDir: .
+    branch: master
+    buildCommand: bash aggregator/render-build.sh
+    startCommand: ztfa-aggregator
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.11"
+      - key: STUB_MODE
+        value: "1"
+      - key: N_CLIENTS
+        value: "3"
+      - key: ROUND_PERIOD_SEC
+        value: "600"
+      - key: CHAIN_RPC_URL
+        value: "https://rpc.cardona.zkevm-rpc.com"
+      - key: CHAIN_ID
+        value: "2442"
+      # Set after deploying contracts to Cardona; empty triggers stub mode.
+      - key: FEDERATION_ROUND_ADDRESS
+        value: ""
+      # Sync from Render database resource above.
+      - fromDatabase:
+          name: ztfa-postgres
+          property: connectionString
+        key: DATABASE_URL
+      # Aggregator service-wallet PK — provision via dashboard/CLI as a secret.
+      - key: AGGREGATOR_PRIVATE_KEY
+        sync: false
+
+  - type: web
+    name: ztfa-portal
+    runtime: node
+    region: oregon
+    plan: free
+    rootDir: portal
+    branch: master
+    buildCommand: npm install --legacy-peer-deps && npm run build
+    startCommand: npx next start -p $PORT
+    healthCheckPath: /
+    autoDeploy: true
+    envVars:
+      - key: NODE_VERSION
+        value: "20"
+      - key: NEXT_PUBLIC_CHAIN_ID
+        value: "2442"
+      - key: NEXT_PUBLIC_RPC_URL
+        value: "https://rpc.cardona.zkevm-rpc.com"
+      - key: NEXT_PUBLIC_FEDERATION_ROUND_ADDRESS
+        value: ""
+      - key: NEXT_PUBLIC_AGGREGATOR_API_URL
+        sync: false
+      - key: NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID
+        value: "stub_for_cloud_demo"

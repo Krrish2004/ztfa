@@ -39,7 +39,7 @@ class Orchestrator:
     def __init__(
         self,
         settings: Settings,
-        chain: ChainClient,
+        chain: ChainClient | None,
         storage: StorageBackend,
         session_factory,
     ) -> None:

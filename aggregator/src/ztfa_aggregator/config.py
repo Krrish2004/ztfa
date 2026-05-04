@@ -17,6 +17,13 @@ class Settings(BaseSettings):
     aggregator_payment_wei: int = Field(default=int(1e15), alias="AGGREGATOR_PAYMENT_WEI")
     round_period_sec: int = Field(default=600, alias="ROUND_PERIOD_SEC")
 
+    # Cloud-stub mode: aggregator boots without CKKS keys / chain wired up.
+    # Used for the Render demo deployment where contracts and the federation
+    # initiator's CKKS context are bootstrapped out-of-band. /health and
+    # /v1/round/{t}/status remain available; finalize/aggregate gate on this.
+    stub_mode: bool = Field(default=False, alias="STUB_MODE")
+    port: int = Field(default=8000, alias="PORT")
+
     # Chain
     chain_rpc_url: str = Field(default="http://localhost:8545", alias="CHAIN_RPC_URL")
     chain_id: int = Field(default=31337, alias="CHAIN_ID")
