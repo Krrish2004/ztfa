@@ -79,9 +79,11 @@ aggregator/data/
 .postgres-data/
 .anvil-state/
 
-# --- IDE / OS ---
+# --- IDE / OS / Claude Code ---
 .vscode/
 .idea/
+.claude/scheduled_tasks.lock
+*.bak
 *.swp
 *.swo
 .DS_Store
