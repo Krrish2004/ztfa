@@ -26,8 +26,8 @@ dependencies = [
     "tenseal>=0.3.14",
     # Poseidon (BN254-compatible)
     "poseidon-hash>=0.1.4",
-    # Numerical
-    "numpy>=2.1.0",
+    # Numerical (numpy floor lowered to 1.21 — transitive galois pin <1.27)
+    "numpy>=1.21,<2.0",
 ]
 
 [project.optional-dependencies]

@@ -5,7 +5,9 @@ description = "Shared CKKS + Poseidon primitives used by both client and aggrega
 requires-python = ">=3.11"
 dependencies = [
     "tenseal>=0.3.14",
-    "numpy>=2.1.0",
+    # numpy floor lowered from 2.1 to satisfy galois<1.27 (transitive of poseidon-hash).
+    # TenSEAL 0.3.16 wheels are compatible with numpy 1.21–1.26.
+    "numpy>=1.21,<2.0",
     "poseidon-hash>=0.1.4",
 ]
 
