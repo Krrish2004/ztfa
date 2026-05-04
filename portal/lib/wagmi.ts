@@ -43,9 +43,14 @@ export const cardona = defineChain({
 export const activeChain = CHAIN_ID === 2442 ? cardona : anvil;
 
 export const wagmiConfig = createConfig({
-  chains: [activeChain],
+  chains: [anvil, cardona],
   connectors: [injected()],
-  transports: { [activeChain.id]: http(RPC_URL) },
+  transports: {
+    [anvil.id]: http(CHAIN_ID === 31337 ? RPC_URL : "http://127.0.0.1:8545"),
+    [cardona.id]: http(
+      CHAIN_ID === 2442 ? RPC_URL : "https://rpc.cardona.zkevm-rpc.com",
+    ),
+  },
   ssr: true,
 });
 
