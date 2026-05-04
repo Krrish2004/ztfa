@@ -110,3 +110,47 @@ bash scripts/clean.sh   # drops all volumes, regenerable artifacts, .env
 | ProofFailed on chain | Regenerate fixture: `python3 scripts/gen_fixture.py` |
 | TenSEAL import error | Ensure venv: `source .venv/bin/activate` |
 | Aggregator fails with "FATAL: secret key" | A bad context bin is in `keys/`; re-run bootstrap |
+
+---
+
+## Appendix: Render cloud-deploy (stub-mode)
+
+A parallel cloud target lives in `render.yaml` at repo root. CLAUDE.md §12.C.1 documents the substitutions vs. the local stack. **Local-dev remains primary.**
+
+### Resources provisioned
+
+| Resource | Render ID | URL / connection |
+|---|---|---|
+| Postgres (free, expires 90d) | `dpg-d7s8jai8qa3s73e06apg-a` | dashboard only |
+| Aggregator web service | `srv-d7s8jv9o3t8c73dlijfg` | https://ztfa-aggregator.onrender.com |
+| Portal web service | `srv-d7s8k0hj2pic73fqhb50` | https://ztfa-portal.onrender.com |
+
+### Substitutions
+
+- **Anvil** → Polygon zkEVM Cardona public RPC (`https://rpc.cardona.zkevm-rpc.com`, chainId 2442)
+- **MinIO** → ephemeral filesystem on the aggregator instance
+- **Mosquitto** → omitted (cloud demo doesn't run continuous IoT ingest)
+- **CKKS keys** → bootstrapped out-of-band; aggregator boots in `STUB_MODE=1`
+
+### Bootstrapping past stub-mode (manual, future)
+
+To wire a real federation:
+
+1. Generate CKKS pk locally (`scripts/bootstrap.sh`), upload `keys/ckks_public.bin` to the aggregator instance (e.g. via Render Shell), unset `STUB_MODE`.
+2. Deploy contracts to Cardona: fund a deployer wallet via https://faucet.polygon.technology/, then `cd contracts && forge script script/Deploy.s.sol --rpc-url https://rpc.cardona.zkevm-rpc.com --broadcast`.
+3. Set on the aggregator: `FEDERATION_ROUND_ADDRESS`, `AGGREGATOR_PRIVATE_KEY`. Set on the portal: `NEXT_PUBLIC_FEDERATION_ROUND_ADDRESS`. Trigger redeploy.
+4. Wire `DATABASE_URL` from the Render Postgres connection string (dashboard → Internal/External Database URL).
+
+### Smoke-test endpoints (stub mode)
+
+```bash
+curl https://ztfa-aggregator.onrender.com/health
+# → {"status":"ok","stub_mode":true,"chain_wired":false,"n_clients":3}
+
+curl https://ztfa-aggregator.onrender.com/v1/keys/joint-public
+# → 503 "public CKKS context not yet bootstrapped (cloud-stub mode)"
+
+curl -X POST -d '{"t":1}' -H "Content-Type: application/json" \
+     https://ztfa-aggregator.onrender.com/v1/round/start
+# → 503 "chain not wired (cloud-stub mode); deploy contracts and set FEDERATION_ROUND_ADDRESS"
+```

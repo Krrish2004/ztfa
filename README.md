@@ -9,6 +9,16 @@
 >
 > **The aggregator never holds a secret key. Ciphertexts never go on-chain.**
 
+## Live cloud demo (Render, stub-mode)
+
+| Service | URL |
+|---|---|
+| Portal (Next.js) | https://ztfa-portal.onrender.com |
+| Aggregator (FastAPI) | https://ztfa-aggregator.onrender.com |
+| Aggregator health | https://ztfa-aggregator.onrender.com/health |
+
+Cloud demo runs in **`STUB_MODE`** until contracts and the CKKS public context are bootstrapped on Polygon zkEVM Cardona — `/health` and `/v1/round/{t}/status` are live, while `start` / `finalize` / `joint-public` return 503 with a clear message. See `CLAUDE.md §12.C.1` and `render.yaml` for the cloud-deploy contract; **all §8 invariants are still enforced** (no `sk` on the aggregator, ciphertexts never on-chain, Poseidon for commitments). Local-dev remains the primary target.
+
 ---
 
 ## Table of contents
