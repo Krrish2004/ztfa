@@ -7,10 +7,17 @@ from pathlib import Path
 
 import structlog
 from web3 import Web3
-from web3.middleware import geth_poa_middleware
 
 from .config import Settings
 from .prover import Groth16Proof
+
+# web3.py renamed the POA middleware between v6 and v7.
+# v6: web3.middleware.geth_poa_middleware
+# v7: web3.middleware.ExtraDataToPOAMiddleware
+try:
+    from web3.middleware import ExtraDataToPOAMiddleware as _PoaMiddleware  # type: ignore[attr-defined]
+except ImportError:  # pragma: no cover — fallback for web3 6.x
+    from web3.middleware import geth_poa_middleware as _PoaMiddleware  # type: ignore[attr-defined,no-redef]
 
 log = structlog.get_logger()
 
@@ -46,8 +53,8 @@ class ChainClient:
     def __init__(self, settings: Settings) -> None:
         self.settings = settings
         self.w3 = Web3(Web3.HTTPProvider(settings.chain_rpc_url))
-        # Anvil's a POA-friendly chain
-        self.w3.middleware_onion.inject(geth_poa_middleware, layer=0)
+        # Anvil + Polygon zkEVM are POA-friendly chains
+        self.w3.middleware_onion.inject(_PoaMiddleware, layer=0)
         self.account = self.w3.eth.account.from_key(settings.aggregator_private_key)
         if not settings.federation_round_address:
             raise RuntimeError("FEDERATION_ROUND_ADDRESS not set")
@@ -66,7 +73,7 @@ class ChainClient:
             }
         )
         signed = self.account.sign_transaction(tx)
-        tx_hash = self.w3.eth.send_raw_transaction(signed.rawTransaction)
+        tx_hash = self.w3.eth.send_raw_transaction(signed.raw_transaction)
         receipt = self.w3.eth.wait_for_transaction_receipt(tx_hash)
         log.info("startRound", t=t, tx=tx_hash.hex(), gas_used=receipt.gasUsed)
         return tx_hash.hex()
@@ -88,7 +95,7 @@ class ChainClient:
             }
         )
         signed = self.account.sign_transaction(tx)
-        tx_hash = self.w3.eth.send_raw_transaction(signed.rawTransaction)
+        tx_hash = self.w3.eth.send_raw_transaction(signed.raw_transaction)
         receipt = self.w3.eth.wait_for_transaction_receipt(tx_hash)
         if receipt.status != 1:
             raise RuntimeError(f"submitAggregateAndProof reverted: {tx_hash.hex()}")
