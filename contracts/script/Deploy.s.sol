@@ -20,6 +20,7 @@ import {Groth16Verifier} from "../src/Verifier.sol";
 ///   ROUND_TIMEOUT_SEC        (default: 600)
 ///   N_CLIENTS                (default: 3)
 ///   AGGREGATOR_ADDRESS       (default: 0x70997970C51812dc3A010C7d01b50e0d17dc79C8 — anvil[1])
+///   PREFUND_ROUNDS           (default: 100 — set to 1 for cheap testnet deploys)
 contract Deploy is Script {
     function run() external {
         uint256 perFee = vm.envOr("PER_CLIENT_FEE_WEI", uint256(5e14));
@@ -29,6 +30,7 @@ contract Deploy is Script {
         address aggregator = vm.envOr(
             "AGGREGATOR_ADDRESS", address(0x70997970C51812dc3A010C7d01b50e0d17dc79C8)
         );
+        uint256 prefundRounds = vm.envOr("PREFUND_ROUNDS", uint256(100));
 
         vm.startBroadcast();
 
@@ -43,9 +45,11 @@ contract Deploy is Script {
         );
 
         // Pre-fund the round contract so it can pay the aggregator on verify.
-        // 100 rounds × aggPay should be enough for a long demo.
-        (bool sent,) = payable(address(round)).call{value: aggPay * 100}("");
-        require(sent, "fund failed");
+        // Default 100 rounds × aggPay; reduce via PREFUND_ROUNDS for testnets.
+        if (prefundRounds > 0) {
+            (bool sent,) = payable(address(round)).call{value: aggPay * prefundRounds}("");
+            require(sent, "fund failed");
+        }
 
         vm.stopBroadcast();
 
