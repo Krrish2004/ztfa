@@ -1,109 +1,103 @@
 pragma circom 2.1.6;
 
-// ZTFA — federated-aggregation correctness circuit (v1 demo).
+// ZTFA — federated-aggregation correctness circuit (v1, full polynomial arithmetic).
 //
-// PROVES (per HLD §6.1, with v1 simplification documented in CLAUDE.md §5):
-//   ∀i ∈ [0, N):  Hash(c_i) = H_i      // commitment binding
-//   c_sum   = Σᵢ c_i                    // additive aggregation
-//   Hash(c_sum) = H_sum                 // result binding
+// PROVES (HLD §6.1):
+//   ∀i ∈ [0, N):  Hash(c_i) = H_i           // commitment binding
+//                 c_sum[k] = Σ_i c_i[k]      // additive aggregation
+//                                            // (over BN254 Fr, NO mod q;
+//                                            //  decrypt-side reduces)
+//                 Hash(c_sum) = H_sum        // result binding
 //
-// The (1/N) scalar mult is moved to plaintext (post-threshold-decryption) in
-// v1 — equivalent semantics, simpler circuit.
+// Each ciphertext c_i is a pair of polynomials (a, b) ∈ R_q × R_q with
+// R_q = Z_q[X]/(X^N_RING + 1), N_RING = 256, q ≈ 2^60. Flattened into a
+// length-M = 2·N_RING = 512 vector of Fr elements (each coefficient is
+// < q < 2^60, well below BN254 Fr's ~2^254).
 //
-// Each ciphertext is represented as a K=8-element compressed digest (CLAUDE.md
-// §5 simplification). The client computes the digest over its real CKKS
-// ciphertext using `ztfa_crypto.snark_digest`; the aggregator does the same
-// over c_agg. Off-circuit additive linkage of the digest to the underlying
-// ciphertext is the v1 trust assumption.
+// The aggregator's `mini_he.add` does NOT reduce mod q, so the on-chain
+// commit's preimage IS the unreduced sum and the BN254 constraint
+// `c_sum[k] = Σ c_i[k]` holds without any in-circuit modular reduction.
 //
 // PARAMETERS (compile-time):
-//   N  — number of clients (e.g. 3)
-//   K  — digest length in BN254 Fr elements (locked at 8)
+//   N — number of clients (3 for v1 demo)
+//   M — coefficients per ciphertext (= 2·N_RING = 512)
 //
-// PUBLIC INPUTS:
-//   H[N]      — Poseidon-chain commitments to each client's digest
-//   H_sum     — Poseidon-chain commitment to the sum digest
-//
-// PRIVATE WITNESS:
-//   c[N][K]   — each client's compressed digest
-//   c_sum[K]  — aggregate's compressed digest
+// PUBLIC INPUTS:  H[N], H_sum
+// PRIVATE WITNESS: c[N][M], c_sum[M]
 
 include "circomlib/circuits/poseidon.circom";
 
-// Hash a length-K array via left-fold pairwise Poseidon.
-// h_0 = 0; h_{j+1} = Poseidon(h_j, x[j])  =>  result = h_K
-template PoseidonChainK(K) {
-    signal input in[K];
+// Length-M Poseidon-chain hash: h_0 = 0; h_{j+1} = Poseidon(h_j, in[j]).
+template PoseidonChain(M) {
+    signal input in[M];
     signal output out;
 
-    component p[K];
-    signal acc[K + 1];
+    component p[M];
+    signal acc[M + 1];
     acc[0] <== 0;
-    for (var j = 0; j < K; j++) {
+    for (var j = 0; j < M; j++) {
         p[j] = Poseidon(2);
         p[j].inputs[0] <== acc[j];
         p[j].inputs[1] <== in[j];
         acc[j + 1] <== p[j].out;
     }
-    out <== acc[K];
+    out <== acc[M];
 }
 
-// Sum N length-K vectors element-wise.
-template VecSum(N, K) {
-    signal input in[N][K];
-    signal output out[K];
+// Sum N length-M vectors element-wise (in Fr; no modular reduction).
+template VecSum(N, M) {
+    signal input in[N][M];
+    signal output out[M];
 
-    signal acc[N + 1][K];
-    for (var k = 0; k < K; k++) {
+    signal acc[N + 1][M];
+    for (var k = 0; k < M; k++) {
         acc[0][k] <== 0;
     }
     for (var i = 0; i < N; i++) {
-        for (var k = 0; k < K; k++) {
+        for (var k = 0; k < M; k++) {
             acc[i + 1][k] <== acc[i][k] + in[i][k];
         }
     }
-    for (var k = 0; k < K; k++) {
+    for (var k = 0; k < M; k++) {
         out[k] <== acc[N][k];
     }
 }
 
-template Aggregation(N, K) {
-    // Public
+template Aggregation(N, M) {
     signal input H[N];
     signal input H_sum;
 
-    // Private
-    signal input c[N][K];
-    signal input c_sum[K];
+    signal input c[N][M];
+    signal input c_sum[M];
 
-    // 1) Commitment binding: Hash(c_i) = H_i
-    component hashClient[N];
+    // 1) Commitment binding: PoseidonChain(c_i) = H_i
+    component hashC[N];
     for (var i = 0; i < N; i++) {
-        hashClient[i] = PoseidonChainK(K);
-        for (var k = 0; k < K; k++) {
-            hashClient[i].in[k] <== c[i][k];
+        hashC[i] = PoseidonChain(M);
+        for (var k = 0; k < M; k++) {
+            hashC[i].in[k] <== c[i][k];
         }
-        hashClient[i].out === H[i];
+        hashC[i].out === H[i];
     }
 
-    // 2) Additive aggregation: c_sum = Σ c_i
-    component sumGate = VecSum(N, K);
+    // 2) Additive aggregation: c_sum = Σ c_i (in Fr; no mod q).
+    component sumGate = VecSum(N, M);
     for (var i = 0; i < N; i++) {
-        for (var k = 0; k < K; k++) {
+        for (var k = 0; k < M; k++) {
             sumGate.in[i][k] <== c[i][k];
         }
     }
-    for (var k = 0; k < K; k++) {
+    for (var k = 0; k < M; k++) {
         sumGate.out[k] === c_sum[k];
     }
 
-    // 3) Result binding: Hash(c_sum) = H_sum
-    component hashSum = PoseidonChainK(K);
-    for (var k = 0; k < K; k++) {
-        hashSum.in[k] <== c_sum[k];
+    // 3) Result binding: PoseidonChain(c_sum) = H_sum
+    component hashS = PoseidonChain(M);
+    for (var k = 0; k < M; k++) {
+        hashS.in[k] <== c_sum[k];
     }
-    hashSum.out === H_sum;
+    hashS.out === H_sum;
 }
 
-// Top-level instantiation: N=3 clients, K=8-element digests (locked for demo).
-component main {public [H, H_sum]} = Aggregation(3, 8);
+// Top-level: N=3 clients, M=256 coefs per ciphertext (128 ring degree × 2 polys)
+component main {public [H, H_sum]} = Aggregation(3, 256);

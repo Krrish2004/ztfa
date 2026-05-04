@@ -1,13 +1,13 @@
 /**
- * wagmi v2 + RainbowKit configuration.
- *
- * Local dev uses Anvil (chainId 31337). Production wiring for Polygon zkEVM
- * Cardona is left commented for v2.
+ * Plain wagmi v2 configuration — no RainbowKit (it caused render failures
+ * with React 19 + Next 15). We expose a simple injected connector and a
+ * manual ConnectButton component below.
  */
-import { getDefaultConfig } from "@rainbow-me/rainbowkit";
+import { http, createConfig } from "wagmi";
+import { injected } from "wagmi/connectors";
 import { defineChain } from "viem";
 
-const anvil = defineChain({
+export const anvil = defineChain({
   id: 31337,
   name: "Anvil",
   nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
@@ -17,10 +17,12 @@ const anvil = defineChain({
   testnet: true,
 });
 
-export const wagmiConfig = getDefaultConfig({
-  appName: "ZTFA Portal",
-  projectId: process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID || "stub_for_local_dev",
+export const wagmiConfig = createConfig({
   chains: [anvil],
+  connectors: [injected()],
+  transports: {
+    [anvil.id]: http("http://127.0.0.1:8545"),
+  },
   ssr: true,
 });
 

@@ -1,10 +1,8 @@
 "use client";
 
-import { ConnectButton } from "@rainbow-me/rainbowkit";
-import dynamic from "next/dynamic";
 import Link from "next/link";
-
-const WalletPanel = dynamic(() => import("@/components/WalletPanel"), { ssr: false });
+import { ConnectButton } from "@/components/ConnectButton";
+import WalletPanel from "@/components/WalletPanel";
 
 export default function WalletPage() {
   return (
@@ -16,7 +14,7 @@ export default function WalletPage() {
           <Link href="/rounds">Rounds</Link>
           <Link href="/wallet">Wallet</Link>
           <Link href="/settings">Settings</Link>
-          <ConnectButton accountStatus="address" chainStatus="icon" />
+          <ConnectButton />
         </nav>
       </header>
       <main>

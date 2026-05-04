@@ -14,7 +14,6 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from .poseidon import poseidon_chain
-from .snark_digest import DIGEST_LEN_K, project_sum_in_field
 
 
 @dataclass(frozen=True)
@@ -35,24 +34,33 @@ class CircuitInputs:
         }
 
 
-def build_inputs(client_digests: list[list[int]]) -> CircuitInputs:
-    """Compute the full witness from a list of per-client digests.
+def build_inputs(client_coefficients: list[list[int]]) -> CircuitInputs:
+    """Compute the full witness from per-client ciphertext coefficient vectors.
 
-    Each `client_digests[i]` is a length-K list of BN254 Fr elements (computed
-    via `snark_digest.project` over that client's serialized ciphertext).
+    Each `client_coefficients[i]` is a length-M list of BN254 Fr-compatible
+    integers (coefficients of the (a, b) polynomial pair, flattened in order).
+    For mini_he with N_RING=256, M = 2*256 = 512.
+
+    The aggregator's c_sum is computed by element-wise addition in BN254 Fr
+    (matching mini_he.add which intentionally does NOT reduce mod q so the
+    constraint Σ c_i = c_sum holds exactly).
     """
-    n = len(client_digests)
+    n = len(client_coefficients)
     if n == 0:
-        raise ValueError("at least 1 client digest required")
-    for i, d in enumerate(client_digests):
-        if len(d) != DIGEST_LEN_K:
-            raise ValueError(f"client {i} digest length {len(d)} != {DIGEST_LEN_K}")
+        raise ValueError("at least 1 client coefficient vector required")
+    m = len(client_coefficients[0])
+    for i, d in enumerate(client_coefficients):
+        if len(d) != m:
+            raise ValueError(f"client {i} length {len(d)} != {m}")
 
-    H = [poseidon_chain(d) for d in client_digests]
-    c_sum = project_sum_in_field(client_digests)
+    H = [poseidon_chain(d) for d in client_coefficients]
+    c_sum = [0] * m
+    for d in client_coefficients:
+        for k in range(m):
+            c_sum[k] += d[k]
     H_sum = poseidon_chain(c_sum)
 
-    return CircuitInputs(H=H, H_sum=H_sum, c=client_digests, c_sum=c_sum)
+    return CircuitInputs(H=H, H_sum=H_sum, c=client_coefficients, c_sum=c_sum)
 
 
 def write_witness(

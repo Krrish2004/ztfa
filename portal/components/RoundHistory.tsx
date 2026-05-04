@@ -1,8 +1,7 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
-import { type Log, parseAbiItem } from "viem";
+import { parseAbiItem } from "viem";
 import { usePublicClient } from "wagmi";
 import { FEDERATION_ROUND_ADDRESS } from "@/lib/wagmi";
 
@@ -24,6 +23,13 @@ export default function RoundHistory() {
 
   useEffect(() => {
     if (!publicClient) return;
+    if (
+      FEDERATION_ROUND_ADDRESS ===
+      "0x0000000000000000000000000000000000000000"
+    ) {
+      setError("FederationRound not deployed yet — run bootstrap.sh / e2e_live.py.");
+      return;
+    }
     let cancelled = false;
     async function load() {
       try {

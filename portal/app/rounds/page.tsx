@@ -1,10 +1,8 @@
 "use client";
 
-import { ConnectButton } from "@rainbow-me/rainbowkit";
-import dynamic from "next/dynamic";
 import Link from "next/link";
-
-const RoundHistory = dynamic(() => import("@/components/RoundHistory"), { ssr: false });
+import { ConnectButton } from "@/components/ConnectButton";
+import RoundHistory from "@/components/RoundHistory";
 
 export default function RoundsPage() {
   return (
@@ -16,7 +14,7 @@ export default function RoundsPage() {
           <Link href="/rounds">Rounds</Link>
           <Link href="/wallet">Wallet</Link>
           <Link href="/settings">Settings</Link>
-          <ConnectButton accountStatus="address" chainStatus="icon" />
+          <ConnectButton />
         </nav>
       </header>
       <main>

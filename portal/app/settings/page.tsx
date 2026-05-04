@@ -1,7 +1,7 @@
 "use client";
 
-import { ConnectButton } from "@rainbow-me/rainbowkit";
 import Link from "next/link";
+import { ConnectButton } from "@/components/ConnectButton";
 
 export default function Settings() {
   return (
@@ -13,7 +13,7 @@ export default function Settings() {
           <Link href="/rounds">Rounds</Link>
           <Link href="/wallet">Wallet</Link>
           <Link href="/settings">Settings</Link>
-          <ConnectButton accountStatus="address" chainStatus="icon" />
+          <ConnectButton />
         </nav>
       </header>
       <main>
