@@ -42,14 +42,13 @@ export const cardona = defineChain({
 
 export const activeChain = CHAIN_ID === 2442 ? cardona : anvil;
 
+// Literal chain IDs so TS keeps the `2442 | 31337` key type intact.
 export const wagmiConfig = createConfig({
-  chains: [anvil, cardona],
+  chains: [anvil, cardona] as const,
   connectors: [injected()],
   transports: {
-    [anvil.id]: http(CHAIN_ID === 31337 ? RPC_URL : "http://127.0.0.1:8545"),
-    [cardona.id]: http(
-      CHAIN_ID === 2442 ? RPC_URL : "https://rpc.cardona.zkevm-rpc.com",
-    ),
+    31337: http(CHAIN_ID === 31337 ? RPC_URL : "http://127.0.0.1:8545"),
+    2442: http(CHAIN_ID === 2442 ? RPC_URL : "https://rpc.cardona.zkevm-rpc.com"),
   },
   ssr: true,
 });
